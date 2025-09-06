@@ -30,6 +30,9 @@ class Engine:
     def deal_card_to_dealer_down(self, card: int) -> None:
         pass
 
+    def deal_card_to_dealer(self, card: int, is_upcard: bool = False) -> None:
+        self.table.deal_card_to_dealer(card, is_upcard)
+
     def dealer_draw(self, card: int) -> None:  # manuel çekiş
         pass
 

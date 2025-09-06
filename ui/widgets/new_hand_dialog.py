@@ -11,16 +11,14 @@ class NewHandDialog(QDialog):
         for i in range(num_players):
             self.layout.addWidget(QLabel(f"Player {i + 1} Cards:"))
             player_card_input = QLineEdit()
+            player_card_input.setPlaceholderText("e.g., A, 10, K")
             self.player_card_inputs.append(player_card_input)
             self.layout.addWidget(player_card_input)
 
         self.layout.addWidget(QLabel("Dealer Upcard:"))
         self.dealer_upcard_input = QLineEdit()
+        self.dealer_upcard_input.setPlaceholderText("e.g., 5")
         self.layout.addWidget(self.dealer_upcard_input)
-
-        self.layout.addWidget(QLabel("Dealer Downcard:"))
-        self.dealer_downcard_input = QLineEdit()
-        self.layout.addWidget(self.dealer_downcard_input)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self.button_box.accepted.connect(self.accept)
@@ -39,6 +37,5 @@ class NewHandDialog(QDialog):
             player_cards.append(cards)
 
         dealer_upcard = name_to_card(self.dealer_upcard_input.text().strip())
-        dealer_downcard = name_to_card(self.dealer_downcard_input.text().strip())
 
-        return player_cards, dealer_upcard, dealer_downcard
+        return player_cards, dealer_upcard

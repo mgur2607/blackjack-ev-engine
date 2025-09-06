@@ -46,6 +46,18 @@ class MainWindow(QMainWindow):
         self.table_panel.facade = facade
         self.shoe_panel.facade = facade
         self.controls_panel.main_window = self # Ensure controls panel has correct main_window reference
+
+        # Clear and re-add player panels in TablePanel
+        for i in reversed(range(self.table_panel.layout.count())):
+            widget = self.table_panel.layout.itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)
+        self.table_panel.player_panels = []
+        for i in range(len(self.facade.table.players)):
+            player_panel = PlayerPanel(i, self.facade)
+            self.table_panel.player_panels.append(player_panel)
+            self.table_panel.layout.addWidget(player_panel)
+
         self.dealer_panel.update_panel()
         self.table_panel.update_panel()
         self.shoe_panel.update_panel()

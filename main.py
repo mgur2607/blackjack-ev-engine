@@ -34,13 +34,12 @@ class EngineFacade:
         if len(self.table.players) > 1:
             self.table.players.pop()
 
-    def new_hand(self, player_cards, dealer_upcard, dealer_downcard):
+    def new_hand(self, player_cards, dealer_upcard):
         self.table.new_round()
         for i, cards in enumerate(player_cards):
             for card in cards:
                 self.table.deal_card_to_player(i, card)
         self.table.deal_card_to_dealer(dealer_upcard, is_upcard=True)
-        self.table.deal_card_to_dealer(dealer_downcard, is_upcard=False)
         self.main_window.update_all_panels()
 
     def end_hand(self):
