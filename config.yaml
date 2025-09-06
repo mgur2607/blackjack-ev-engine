@@ -1,0 +1,12 @@
+decks: 8
+rules:
+  s17: true
+  bj_payout: 1.5
+  allow_split: true
+  allow_double: false
+  split_aces_one_card_stand: true
+  allow_resplit: false
+ui:
+  max_players: 6
+  manual_dealer: true
+  console_overlay: true
