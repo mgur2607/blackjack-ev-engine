@@ -172,10 +172,45 @@ def _ev_hit_cached(
             ev -= p  # bust
             continue
 
-        ev_s = _ev_stand_cached(new_cards, dealer_up, tuple(new_shoe), bj_eligible, s17, bj_payout)
-        ev_h = _ev_hit_cached  (new_cards, dealer_up, tuple(new_shoe), bj_eligible, s17, bj_payout)
+        # 3+ kartlık 21'e BJ ödememek için: bir kart sonrası bj_eligible=False
+        bj_next = False
+        ev_s = _ev_stand_cached(new_cards, dealer_up, tuple(new_shoe), bj_next, s17, bj_payout)
+        ev_h = _ev_hit_cached  (new_cards, dealer_up, tuple(new_shoe), bj_next, s17, bj_payout)
         ev += p * (ev_s if ev_s >= ev_h else ev_h)
     return ev
+
+# ---- Double için: 1 kart çekip hemen stand EV'si (EV₁S) ----
+@lru_cache(maxsize=None)
+def _ev_one_card_stand_cached(
+    player_cards: Tuple[int, ...],
+    dealer_up: Optional[int],
+    shoe: Tuple[int, ...],
+    s17: bool,
+    bj_payout: float,
+) -> float:
+    """
+    Double'ın temel taşı: 'şimdi 1 kart al + zorunlu stand' EV'si.
+    Not: bj_eligible=False (3. kartla 21'e 3:2 yok).
+    Dönüş: EV₁S  → Double EV'nin /2 ölçeği (kişi başı, 2 bet toplamına göre).
+    """
+    remaining = sum(shoe)
+    if remaining == 0:
+        return -1.0
+
+    ev1s = 0.0
+    for v, cnt in enumerate(shoe, 1):
+        if cnt <= 0:
+            continue
+        p = cnt / remaining
+        new_shoe = list(shoe); new_shoe[v - 1] -= 1
+        new_cards = player_cards + (v,)
+        t, _ = _eval_total_and_soft(new_cards)
+        if t > 21:
+            ev1s += p * (-1.0)
+        else:
+            ev1s += p * _ev_stand_cached(new_cards, dealer_up, tuple(new_shoe),
+                                         bj_eligible=False, s17=s17, bj_payout=bj_payout)
+    return ev1s
 
 
 # ===========================
@@ -224,9 +259,13 @@ class Engine:
     # Sorgular
     def compute_ev(self, seat: int, hand_idx: int | None = None) -> dict:
         """
-        Return ONLY: { 'S': ev_stand, 'H': ev_hit, 'SP': ev_split_or_None }
-        (UI 'best' ve diğerlerini kendisi hesaplayacak.)
-        Tüm değerler **birim bet başına** raporlanır. (Split EV zaten /2 normalize.)
+        Return:
+          {
+            'S':  ev_stand,          # birim bet
+            'H':  ev_hit,            # birim bet
+            'SP': ev_split_or_None,  # birim bet
+            'D':  ev_double_per2     # **sadece 2 kartta**; /2 ölçeği (EV₁S)
+          }
         """
         player = self.table.get_player(seat)
         idx = hand_idx if hand_idx is not None else player.active_hand_idx
@@ -235,26 +274,31 @@ class Engine:
         dealer_up_card = self.table.dealer_hand.cards[0] if self.table.dealer_hand.cards else None
         cards = tuple(hand.cards)
 
-        # Oynanabilir state yoksa EV hesaplama (ilk açılışta gereksiz EV'leri engeller)
-        if dealer_up_card is None or len(cards) < 2:
-            return {'S': None, 'H': None, 'SP': None}
+        # Dealer upcard yoksa (oynanamaz state) hesaplama yapma
+        if dealer_up_card is None:
+            return {'S': None, 'H': None, 'SP': None, 'D': None}
 
         shoe_counts = tuple(self.table.shoe.get_counts())
         rules: Rules = self.table.rules
         s17 = bool(getattr(rules, "s17", True))
         bj_payout = float(getattr(rules, "bj_payout", 1.5))
 
-        # Split sonrası ele gelen 21, BJ sayılmaz.
-        is_bj_eligible = not player.has_split
+        # Split sonrası 2-kart 21, BJ sayılmaz (player.has_split yoksa varsayılan False)
+        is_bj_eligible = not bool(getattr(player, "has_split", False))
 
         ev_stand = _ev_stand_cached(cards, dealer_up_card, shoe_counts, is_bj_eligible, s17, bj_payout)
-        ev_hit = _ev_hit_cached(cards, dealer_up_card, shoe_counts, is_bj_eligible, s17, bj_payout)
+        ev_hit   = _ev_hit_cached  (cards, dealer_up_card, shoe_counts, is_bj_eligible, s17, bj_payout)
 
         ev_split = None
         if player.can_split() and getattr(rules, "allow_split", True):
             ev_split = self._calculate_ev_split(hand, dealer_up_card, shoe_counts, s17, bj_payout)
 
-        return {'S': ev_stand, 'H': ev_hit, 'SP': ev_split}
+        # --- Double EV (yalnızca 2 kartta hesapla & göster) ---
+        ev_d_per2 = None
+        if len(cards) == 2:
+            ev_d_per2 = _ev_one_card_stand_cached(cards, dealer_up_card, shoe_counts, s17, bj_payout)
+
+        return {'S': ev_stand, 'H': ev_hit, 'SP': ev_split, 'D': ev_d_per2}
 
     # ---- Split EV (birim bet; /2 normalize) ----
     def _calculate_ev_split(
