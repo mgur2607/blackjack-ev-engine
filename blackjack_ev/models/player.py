@@ -6,6 +6,7 @@ class Player:
         self.hands: List[Hand] = [Hand(())]
         self.active_hand_idx: int = 0
         self.has_split: bool = False
+        self.ev_enabled: bool = True
 
     def deal_card(self, card: int, hand_idx: int | None = None) -> None:
         if hand_idx is None:

@@ -1,7 +1,8 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-from ui.widgets.draw_card_dialog import DrawCardDialog
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QCheckBox
 
+from ui.widgets.draw_card_dialog import DrawCardDialog
 from blackjack_ev.utils.card_utils import card_to_name
+
 
 class HandPanel(QWidget):
     def __init__(self, hand_index, player_panel):
@@ -40,6 +41,11 @@ class HandPanel(QWidget):
         self.cards_label.setText(f"Cards: {', '.join(card_names)}")
         self.total_label.setText(f"Total: {hand.total}")
 
+        if not player.ev_enabled:
+            self.ev_label.setText("EVs: Disabled")
+            self.best_action_label.setText("Best Action: Disabled")
+            return
+
         evs = self.player_panel.facade.engine.compute_ev(self.player_panel.player_index, self.hand_index)
         self.ev_label.setText(f"EVs: {evs}")
 
@@ -59,6 +65,7 @@ class HandPanel(QWidget):
         self.player_panel.facade.next_player_turn()
         self.player_panel.update_panel()
 
+
 class PlayerPanel(QWidget):
     def __init__(self, player_index, facade):
         super().__init__()
@@ -66,8 +73,15 @@ class PlayerPanel(QWidget):
         self.facade = facade
         self.layout = QVBoxLayout(self)
 
+        header_layout = QHBoxLayout()
         self.player_label = QLabel(f"Player {player_index + 1}")
-        self.layout.addWidget(self.player_label)
+        header_layout.addWidget(self.player_label)
+
+        self.ev_enabled_checkbox = QCheckBox("Hesaplama Açık")
+        self.ev_enabled_checkbox.setChecked(True)
+        self.ev_enabled_checkbox.stateChanged.connect(self.toggle_ev_calculation)
+        header_layout.addWidget(self.ev_enabled_checkbox)
+        self.layout.addLayout(header_layout)
 
         self.hands_layout = QHBoxLayout()
         self.layout.addLayout(self.hands_layout)
@@ -75,6 +89,11 @@ class PlayerPanel(QWidget):
         self.split_button = QPushButton("Split")
         self.layout.addWidget(self.split_button)
         self.split_button.clicked.connect(self.split)
+
+    def toggle_ev_calculation(self, state):
+        player = self.facade.table.get_player(self.player_index)
+        player.ev_enabled = (state == 2) # 2 is checked, 0 is unchecked
+        self.update_panel()
 
     def update_panel(self):
         if self.facade is None or self.facade.table is None:

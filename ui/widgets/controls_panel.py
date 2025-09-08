@@ -60,4 +60,5 @@ class ControlsPanel(QWidget):
             drawn_cards = dialog.get_drawn_cards()
             for card in drawn_cards:
                 self.main_window.facade.deal_card_to_dealer(card)
-            self.main_window.update_all_panels()
+            self.main_window.dealer_panel.update_panel()
+            self.main_window.shoe_panel.update_panel()
