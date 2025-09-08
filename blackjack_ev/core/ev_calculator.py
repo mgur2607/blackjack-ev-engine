@@ -244,8 +244,11 @@ class Engine:
         s17 = bool(getattr(rules, "s17", True))
         bj_payout = float(getattr(rules, "bj_payout", 1.5))
 
-        ev_stand = _ev_stand_cached(cards, dealer_up_card, shoe_counts, True, s17, bj_payout)
-        ev_hit   = _ev_hit_cached  (cards, dealer_up_card, shoe_counts, True, s17, bj_payout)
+        # Split sonrası ele gelen 21, BJ sayılmaz.
+        is_bj_eligible = not player.has_split
+
+        ev_stand = _ev_stand_cached(cards, dealer_up_card, shoe_counts, is_bj_eligible, s17, bj_payout)
+        ev_hit = _ev_hit_cached(cards, dealer_up_card, shoe_counts, is_bj_eligible, s17, bj_payout)
 
         ev_split = None
         if player.can_split() and getattr(rules, "allow_split", True):
