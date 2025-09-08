@@ -135,16 +135,33 @@ class Engine:
         if player_total > 21:
             return -1.0
 
+        # Check for natural Blackjack
+        is_player_blackjack = (len(hand.cards) == 2 and player_total == 21)
+
         dealer_distribution = self._get_dealer_distribution(
             dealer_up_card, shoe_counts, self.table.rules
         )
 
         ev = 0.0
         for dealer_total, probability in dealer_distribution.items():
-            if player_total > dealer_total:
-                ev += probability
+            # Dealer busts
+            if dealer_total > 21:
+                if is_player_blackjack:
+                    ev += probability * self.table.rules.bj_payout  # Player Blackjack wins 3:2
+                else:
+                    ev += probability * 1.0  # Player wins 1:1
+            # Player Blackjack vs Dealer non-Blackjack
+            elif is_player_blackjack and dealer_total != 21:
+                ev += probability * self.table.rules.bj_payout
+            # Player wins (higher score)
+            elif player_total > dealer_total:
+                ev += probability * 1.0
+            # Player loses (lower score)
             elif player_total < dealer_total:
-                ev -= probability
+                ev -= probability * 1.0
+            # Push (scores are equal)
+            else:
+                ev += probability * 0.0  # Push
         return ev
 
     @lru_cache(maxsize=None)
@@ -153,18 +170,6 @@ class Engine:
     ) -> Dict[int, float]:
         if dealer_up_card is None:
             return {}
-        """
-        Calculates the probability distribution of the dealer's final hand.
-
-        Args:
-            dealer_up_card: The dealer's up card.
-            shoe_counts: The current counts of cards in the shoe.
-            rules: The rules of the game.
-
-        Returns:
-            A dictionary where the keys are the possible final scores of the dealer
-            (17, 18, 19, 20, 21, 22 for bust) and the values are their probabilities.
-        """
 
         memo = {}
 
@@ -178,6 +183,7 @@ class Engine:
             total = sum(current_hand)
             num_aces = current_hand.count(1)
 
+            # Adjust for soft aces
             while total < 12 and num_aces > 0:
                 total += 10
                 num_aces -= 1
@@ -185,15 +191,16 @@ class Engine:
             if total > 21:
                 return {22: 1.0}  # Bust
 
+            # Dealer stands on 17 or more, or soft 17 if rules.s17 is True
             if total >= 17:
-                if total == 17 and num_aces > 0 and not rules.s17:
-                    pass  # Hit on soft 17
+                if total == 17 and current_hand.count(1) > 0 and not rules.s17: # Soft 17 and H17 rule
+                    pass # Dealer hits
                 else:
                     return {total: 1.0}
 
-            total_cards = sum(current_shoe_counts)
-            if total_cards == 0:
-                return {total: 1.0}
+            total_cards_in_shoe = sum(current_shoe_counts)
+            if total_cards_in_shoe == 0:
+                return {total: 1.0} # Should not happen if logic is correct, but as a safeguard
 
             distribution = {i: 0.0 for i in range(17, 23)}
 
@@ -201,7 +208,8 @@ class Engine:
                 if count > 0:
                     new_shoe_counts = list(current_shoe_counts)
                     new_shoe_counts[card_value - 1] -= 1
-                    probability = count / total_cards
+                    probability = count / total_cards_in_shoe
+                    
                     sub_distribution = _get_dealer_distribution_recursive(
                         current_hand + (card_value,),
                         tuple(new_shoe_counts),
@@ -212,11 +220,9 @@ class Engine:
             memo[state] = distribution
             return distribution
 
-        initial_shoe = Shoe()
-        initial_shoe.counts = shoe_counts
-        initial_shoe.deal_card(dealer_up_card)
-
-        return _get_dealer_distribution_recursive((dealer_up_card,), initial_shoe.counts)
+        # Initial call to the recursive function
+        # The shoe_counts already reflect the shoe after player cards and dealer upcard
+        return _get_dealer_distribution_recursive((dealer_up_card,), shoe_counts)
 
     def end_hand(self) -> dict:
         results = {}
