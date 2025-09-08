@@ -51,7 +51,15 @@ class HandPanel(QWidget):
 
         best_action = "None"
         if evs:
-            best_action = max(evs, key=lambda action: evs[action] if evs[action] is not None else -float('inf'))
+            def get_action_value(action):
+                val = evs.get(action)
+                if val is None:
+                    return -float('inf')
+                # Double'ın getirisi 2 birimlik bahse göre olduğu için 2 ile çarpılır
+                if action == 'D':
+                    return val * 2
+                return val
+            best_action = max(evs, key=get_action_value)
         self.best_action_label.setText(f"Best Action: {best_action}")
 
     def hit(self):
